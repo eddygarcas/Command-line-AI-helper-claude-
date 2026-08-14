@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git branch:*)",
+      "Bash(ls:*)",
+      "Bash(rg:*)",
+      "Bash(fd:*)",
+      "Bash(eza:*)",
+      "Bash(systemctl status:*)",
+      "Bash(journalctl:*)",
+      "Bash(ip:*)",
+      "Bash(pacman -Q:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh run list:*)",
+      "Bash(mise exec -- bundle exec rspec:*)",
+      "Bash(mise ls:*)",
+      "Bash(zig build:*)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(**/.env)",
+      "Read(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Read(~/.config/op/**)",
+      "Bash(op read:*)"
+    ]
+  },
+  "enabledPlugins": {
+    "github@claude-plugins-official": true
+  },
+  "autoUpdatesChannel": "stable",
+  "theme": "dark",
+  "tui": "fullscreen"
+}

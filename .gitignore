@@ -1,0 +1,7 @@
+# Never commit Claude Code state
+.claude.json
+history.jsonl
+projects/
+todos/
+shell-snapshots/
+statsig/
