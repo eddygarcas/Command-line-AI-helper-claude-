@@ -17,7 +17,8 @@
       "Bash(gh run list:*)",
       "Bash(mise exec -- bundle exec rspec:*)",
       "Bash(mise ls:*)",
-      "Bash(zig build:*)"
+      "Bash(zig build:*)",
+      "Bash(curl:*)"
     ],
     "deny": [
       "Read(./.env)",
