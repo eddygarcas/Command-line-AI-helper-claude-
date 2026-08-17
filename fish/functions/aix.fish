@@ -12,6 +12,9 @@ Output rules:
 - Output exactly ONE command or pipeline. Never offer alternatives or fallbacks.
 - Use fish syntax, never bash: command substitution is (cmd) not \$(cmd);
   'set -x VAR val' not 'export'; 'test' not [[ ]]; no heredocs.
+- Assume GNU coreutils and standard flags. Do not assume modern replacements
+  (eza, bat, fd, ripgrep) unless the request names them.
+- Do not parse the output of ls. Use find -printf or stat directly.
 - Do not suppress errors with 2>/dev/null unless the task explicitly asks.
 
 Parameterised scripts:
@@ -42,18 +45,11 @@ Refusal:
 
     # ------------------------------------------------------------------
     # Prose guard. The model sometimes answers in English despite the
-    # style prompt, and _ai_binaries will happily extract a word from a
-    # sentence and try to install it. Detect and bail rather than trust.
+    # style prompt, and _ai_binaries will extract a word from a sentence
+    # and try to install it as a package. Detect and bail.
     # ------------------------------------------------------------------
     if string match -qr '(?i)\b(worth|almost certainly|probably|you (can|could|should|might|may|will)|note that|if you want|instead of|keep in mind|be aware)\b' -- $cmd
-        set_color red
-        echo "aix: model returned prose, not a command. Raw output:"
-        set_color normal
-        printf '%s\n' $cmd
-        return 1
-    end
-    # Sentence-shaped output: capitalised word followed by a full stop and a space.
-    if string match -qr '[a-z]{3,}\.\s+[A-Z]' -- $cmd
+        or string match -qr '[a-z]{3,}\.\s+[A-Z]' -- $cmd
         set_color red
         echo "aix: model returned prose, not a command. Raw output:"
         set_color normal
@@ -62,8 +58,8 @@ Refusal:
     end
 
     # ------------------------------------------------------------------
-    # Script mode. The model signals it, but we verify: no $argv in the
-    # snippet means it isn't actually parameterised, whatever it claimed.
+    # Script mode. The model signals it, but verify: no $argv means it is
+    # not actually parameterised, whatever it claimed.
     # ------------------------------------------------------------------
     set -l is_script 0
     if string match -q '#!SCRIPT*' -- $out[1]
@@ -83,7 +79,8 @@ Refusal:
     set_color normal
 
     # Dependency check.
-    for bin in (_ai_binaries "$cmd")
+    set -l bins (_ai_binaries "$cmd")
+    for bin in $bins
         if not type -q $bin
             _ai_install $bin
             or begin
@@ -102,13 +99,44 @@ Refusal:
         return $status
     end
 
+    # ------------------------------------------------------------------
+    # Alias shadowing. eval runs in THIS shell, so your functions apply.
+    # A generated 'ls -t' written for coreutils will hit an eza wrapper
+    # and fail on flags that mean something else. Warn and offer a clean
+    # run in a child fish with the shadowing functions erased.
+    # ------------------------------------------------------------------
+    set -l shadowed (_ai_shadowed $bins)
+    set -l menu "[r]un  [e]dit  [s]ave as script  [N]o? "
+
+    if test (count $shadowed) -gt 0
+        set_color yellow
+        echo
+        echo "Shadowed by your fish functions: $shadowed"
+        echo "The command was written for the real binaries, so flags may not match."
+        set_color normal
+        set menu "[r]un as-is  [c]lean run (bypass aliases)  [e]dit  [s]ave  [N]o? "
+    end
+
     echo
-    read -l -P "[r]un  [e]dit  [s]ave as script  [N]o? " answer
+    read -l -P "$menu" answer
 
     switch $answer
         case r R
             echo
             eval $cmd
+        case c C
+            if test (count $shadowed) -eq 0
+                echo "Nothing shadowed; use r."
+                return 1
+            end
+            echo
+            # Child fish loads config (so PATH stays intact), then erases the
+            # shadowing functions before running. Note: cd will NOT persist.
+            set -l erase
+            for s in $shadowed
+                set -a erase "functions --erase $s 2>/dev/null;"
+            end
+            fish -c (string join ' ' -- $erase) " $cmd"
         case e E
             set -l tmp (mktemp /tmp/aix.XXXXXX.fish)
             printf '%s\n' $cmd >$tmp
