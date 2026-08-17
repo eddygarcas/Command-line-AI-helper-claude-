@@ -8,8 +8,30 @@ function _ai_save --argument-names cmd prompt --description 'Save a snippet as a
         return 1
     end
 
-    # Keep it to something safe to put on PATH.
+    # Keep it safe to put on PATH.
     set name (string replace -ra '[^A-Za-z0-9._-]' '-' -- $name)
+
+    # Short names collide with real commands. 'r' is R, 'w' is w, 's' is
+    # often an alias -- refuse anything that terse.
+    if test (string length -- $name) -lt 3
+        echo "Name too short: needs 3+ characters to avoid clobbering real commands." >&2
+        return 1
+    end
+
+    if string match -qr '^-' -- $name
+        echo "Name cannot start with a dash." >&2
+        return 1
+    end
+
+    # Warn loudly before shadowing something already callable.
+    if type -q $name
+        set_color red
+        echo "'$name' already resolves to: "(type -p $name 2>/dev/null; or type -t $name)
+        set_color normal
+        read -l -P "Shadow it anyway? [y/N] " ok
+        contains -- $ok y Y; or return 1
+    end
+
     set -l path $dir/$name
 
     if test -e $path
@@ -41,7 +63,7 @@ function _ai_save --argument-names cmd prompt --description 'Save a snippet as a
 
     read -l -P "Run $name now? [y/N] " ok
     if contains -- $ok y Y
-        read -l -P "Arguments (if any): " args
+        read -l -P "Arguments to pass (not the script name): " args
         echo
         eval $path $args
     end

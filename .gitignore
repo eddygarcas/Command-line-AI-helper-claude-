@@ -1,7 +1,8 @@
-# Never commit Claude Code state
+# Claude Code session state -- never commit
 .claude.json
 history.jsonl
 projects/
 todos/
 shell-snapshots/
 statsig/
+*.local.json

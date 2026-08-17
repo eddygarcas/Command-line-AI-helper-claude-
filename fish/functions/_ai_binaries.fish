@@ -3,7 +3,7 @@ function _ai_binaries --description 'Extract external command names from a fish 
     set -l skip for end in if else while switch case function begin and or not \
         set test echo string count math printf read cd source eval exec builtin \
         command type return break continue true false contains abbr alias \
-        fish_add_path status pushd popd time else\ if
+        fish_add_path status pushd popd time
 
     set -l found
 
@@ -15,13 +15,12 @@ function _ai_binaries --description 'Extract external command names from a fish 
 
             set -l first $words[1]
 
-            # Step past sudo / doas / env and their flags.
+            # Step past sudo / doas / env, their flags, and VAR=value pairs.
             set -l i 1
             while contains -- $first sudo doas env
                 set i (math $i + 1)
                 test $i -gt (count $words); and break
                 set first $words[$i]
-                # skip VAR=value and flags
                 while string match -qr '^(-|[A-Za-z_][A-Za-z0-9_]*=)' -- $first
                     set i (math $i + 1)
                     test $i -gt (count $words); and break 2

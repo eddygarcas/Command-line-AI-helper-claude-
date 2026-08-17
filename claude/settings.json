@@ -9,16 +9,19 @@
       "Bash(rg:*)",
       "Bash(fd:*)",
       "Bash(eza:*)",
+      "Bash(du:*)",
+      "Bash(df:*)",
       "Bash(systemctl status:*)",
       "Bash(journalctl:*)",
       "Bash(ip:*)",
       "Bash(pacman -Q:*)",
+      "Bash(pacman -F:*)",
+      "Bash(pacman -Ss:*)",
       "Bash(gh pr list:*)",
       "Bash(gh run list:*)",
-      "Bash(mise exec -- bundle exec rspec:*)",
       "Bash(mise ls:*)",
-      "Bash(zig build:*)",
-      "Bash(curl:*)"
+      "Bash(mise exec -- bundle exec rspec:*)",
+      "Bash(zig build:*)"
     ],
     "deny": [
       "Read(./.env)",
@@ -27,13 +30,10 @@
       "Read(~/.ssh/**)",
       "Read(~/.aws/**)",
       "Read(~/.config/op/**)",
-      "Bash(op read:*)"
+      "Read(~/.claude.json)",
+      "Bash(op read:*)",
+      "Bash(op item:*)"
     ]
   },
-  "enabledPlugins": {
-    "github@claude-plugins-official": true
-  },
-  "autoUpdatesChannel": "stable",
-  "theme": "dark",
-  "tui": "fullscreen"
+  "autoUpdatesChannel": "stable"
 }

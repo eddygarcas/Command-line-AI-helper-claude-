@@ -9,11 +9,10 @@ function _ai_install --argument-names bin --description 'Install the package own
     set_color normal
 
     # ------------------------------------------------------------------
-    # 1. Make sure the files database is present for EVERY configured repo.
-    #    The .files databases map a binary path to its owning package. They
-    #    are not synced by -Syu, and each repo has its own. On CachyOS that
-    #    means cachyos, cachyos-core-znver4, cachyos-extra-znver4, etc., not
-    #    just core/extra/multilib -- so enumerate rather than assume.
+    # 1. Files database must be present for EVERY configured repo. These
+    #    map a binary path to its owning package, are not synced by -Syu,
+    #    and each repo has its own. On CachyOS that means cachyos-znver4,
+    #    cachyos-core-znver4 etc, not just core/extra -- so enumerate.
     # ------------------------------------------------------------------
     set -l repos
     if type -q pacman-conf
@@ -39,14 +38,10 @@ function _ai_install --argument-names bin --description 'Install the package own
     end
 
     # ------------------------------------------------------------------
-    # 2. Resolve binary -> package by owned path. Binary and package names
-    #    diverge often: rg->ripgrep, dig->bind, convert->imagemagick.
-    #    pacman -Fq prints "repo/package"; keep the repo for display but
-    #    install by bare package name.
+    # 2. Resolve binary -> package by owned path. Names diverge often:
+    #    rg->ripgrep, dig->bind, convert->imagemagick.
     # ------------------------------------------------------------------
     set -l hits (pacman -Fq "usr/bin/$bin" 2>/dev/null | string trim | string match -v '')
-
-    # Some packages install to sbin; check that too before giving up.
     if test (count $hits) -eq 0
         set hits (pacman -Fq "usr/sbin/$bin" 2>/dev/null | string trim | string match -v '')
     end
@@ -70,7 +65,9 @@ function _ai_install --argument-names bin --description 'Install the package own
             end
         end
 
-        # Strip the repo prefix and any trailing version column.
+        # Strip repo prefix and any trailing version column. Note pacman
+        # resolves the repo itself by pacman.conf order, so the menu is
+        # informational -- use 'pacman -S repo/pkg' to force one.
         set -l pkg (string replace -r '^[^/]+/' '' -- $choice | string replace -r '\s.*$' '')
 
         read -l -P "Install $choice ? [y/N] " ok
@@ -83,7 +80,7 @@ function _ai_install --argument-names bin --description 'Install the package own
         end
     else
         # --------------------------------------------------------------
-        # 3. Not in the repos. Fall back to an AUR helper if one exists.
+        # 3. Not in the repos. Fall back to an AUR helper if present.
         # --------------------------------------------------------------
         set -l helper
         for h in paru yay pikaur aura
@@ -113,12 +110,8 @@ function _ai_install --argument-names bin --description 'Install the package own
     end
 
     # ------------------------------------------------------------------
-    # 4. Confirm it is now callable. Fish caches command lookups per
-    #    session, so rehash before checking.
+    # 4. Confirm it is callable now.
     # ------------------------------------------------------------------
-    if functions -q fish_command_not_found
-        functions --erase fish_command_not_found 2>/dev/null
-    end
     hash -r 2>/dev/null
 
     if type -q $bin
@@ -130,8 +123,7 @@ function _ai_install --argument-names bin --description 'Install the package own
         set_color red
         echo "$bin still not on PATH after install."
         set_color normal
-        echo "The package may install it under a different name, or to a path" >&2
-        echo "not in \$PATH. Check with: pacman -Ql <package> | grep bin/" >&2
+        echo "Check where it landed with: pacman -Ql <package> | grep bin/" >&2
         return 1
     end
 end
