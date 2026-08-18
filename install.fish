@@ -14,7 +14,7 @@ set -g PASS 0
 set -g WARN 0
 set -g FAIL 0
 
-set -g FUNCS ai aim aix explain cs _ai_clean _ai_binaries _ai_install _ai_save _ai_shadowed _ai_validate _ai_opts
+set -g FUNCS ai aim aix explain cs _ai_clean _ai_binaries _ai_install _ai_save _ai_shadowed _ai_validate _ai_opts _ai_quote_urls
 
 # ---------------------------------------------------------------- helpers
 
@@ -328,6 +328,22 @@ end')
         else
             _fail "aix still appends to the default system prompt"
         end
+    end
+
+    # URL quoting: a bare URL with a query string is a shell hazard.
+    source $REPO/fish/functions/_ai_quote_urls.fish 2>/dev/null
+    set -l raw "yt-dlp -f 134 https://www.youtube.com/watch?v=abc&t=35s"
+    set -l fixed (_ai_quote_urls "$raw" | string collect)
+    if string match -q "*'https://www.youtube.com/watch?v=abc&t=35s'*" -- $fixed
+        _ok "_ai_quote_urls quotes bare query-string URLs"
+    else
+        _fail "_ai_quote_urls did not quote the URL: $fixed"
+    end
+    set -l already "curl -s 'https://x.com/a?b=1'"
+    if test (_ai_quote_urls "$already" | string collect) = "$already"
+        _ok "_ai_quote_urls leaves quoted URLs alone"
+    else
+        _fail "_ai_quote_urls double-quoted an already-quoted URL"
     end
 
     # Lint: 'command sudo command pacman' passes 'command' to sudo as a binary

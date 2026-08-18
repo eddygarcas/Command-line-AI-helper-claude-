@@ -38,6 +38,8 @@ Absolute rules:
   'test' not [[ ]]; no heredocs.
 - Assume GNU coreutils. Do not assume eza/bat/fd/ripgrep unless named.
 - Never parse ls output. Use find -printf or stat.
+- ALWAYS single-quote a URL that contains ? or &, e.g.
+  yt-dlp -F 'https://youtube.com/watch?v=abc&t=1s'
 - Do not add 2>/dev/null unless asked.
 
 Parameterised scripts:
@@ -115,6 +117,19 @@ Only refusal:
     set_color --bold yellow
     printf '%s\n' $cmd
     set_color normal
+
+    # Quote bare URLs with query strings. Done after display of the raw output
+    # would be confusing, so do it before and say so when it changes anything.
+    set -l quoted (_ai_quote_urls "$cmd" | string collect)
+    if test "$quoted" != "$cmd"
+        set cmd $quoted
+        set_color cyan
+        echo "(quoted a URL containing shell metacharacters)"
+        set_color normal
+        set_color --bold yellow
+        printf '%s\n' $cmd
+        set_color normal
+    end
 
     # Dependency check.
     set -l bins (_ai_binaries "$cmd")
