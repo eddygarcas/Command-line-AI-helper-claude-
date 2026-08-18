@@ -16,7 +16,7 @@ function _ai_install --argument-names bin --description 'Install the package own
     # ------------------------------------------------------------------
     set -l repos
     if type -q pacman-conf
-        set repos (pacman-conf --repo-list 2>/dev/null)
+        set repos (command pacman-conf --repo-list 2>/dev/null)
     end
     test (count $repos) -eq 0; and set repos core extra multilib
 
@@ -33,7 +33,7 @@ function _ai_install --argument-names bin --description 'Install the package own
                 echo "Cannot resolve package without the files database." >&2
                 return 1
             case '*'
-                sudo pacman -Fy; or return 1
+                command sudo command pacman -Fy; or return 1
         end
     end
 
@@ -41,9 +41,9 @@ function _ai_install --argument-names bin --description 'Install the package own
     # 2. Resolve binary -> package by owned path. Names diverge often:
     #    rg->ripgrep, dig->bind, convert->imagemagick.
     # ------------------------------------------------------------------
-    set -l hits (pacman -Fq "usr/bin/$bin" 2>/dev/null | string trim | string match -v '')
+    set -l hits (command pacman -Fq "usr/bin/$bin" 2>/dev/null | string trim | string match -v '')
     if test (count $hits) -eq 0
-        set hits (pacman -Fq "usr/sbin/$bin" 2>/dev/null | string trim | string match -v '')
+        set hits (command pacman -Fq "usr/sbin/$bin" 2>/dev/null | string trim | string match -v '')
     end
 
     if test (count $hits) -gt 0
@@ -73,7 +73,7 @@ function _ai_install --argument-names bin --description 'Install the package own
         read -l -P "Install $choice ? [y/N] " ok
         switch $ok
             case y Y
-                sudo pacman -S --needed $pkg; or return 1
+                command sudo command pacman -S --needed $pkg; or return 1
             case '*'
                 echo "Skipped."
                 return 1
@@ -97,12 +97,12 @@ function _ai_install --argument-names bin --description 'Install the package own
         end
 
         echo "No repo package provides $bin. Searching AUR with $helper..."
-        $helper -Ss "^$bin\$" 2>/dev/null | head -20
+        command $helper -Ss "^$bin\$" 2>/dev/null | command head -20
 
         read -l -P "Install '$bin' via $helper? [y/N] " ok
         switch $ok
             case y Y
-                $helper -S --needed $bin; or return 1
+                command $helper -S --needed $bin; or return 1
             case '*'
                 echo "Skipped."
                 return 1

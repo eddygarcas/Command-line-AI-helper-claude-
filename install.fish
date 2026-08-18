@@ -215,6 +215,36 @@ end')
         _fail "_ai_shadowed returned '$got', expected '__cs_probe'"
     end
 
+    # Regression: our own helpers must not break when the user wraps common
+    # commands. A cat->bat or sed->sd alias previously killed _ai_clean
+    # silently. Shadow them and confirm the helpers still work.
+    function cat
+        echo "BROKEN-cat"
+    end
+    function sed
+        echo "BROKEN-sed"
+    end
+    function basename
+        echo "BROKEN-basename"
+    end
+
+    set -l cleaned2 (printf '```fish\nfor f in *.txt\nend\n```\n' | _ai_clean)
+    set -l bins2 (_ai_binaries '/usr/local/bin/mytool --flag')
+
+    functions --erase cat sed basename
+
+    if test "$cleaned2[1]" = "for f in *.txt"
+        _ok "_ai_clean survives cat/sed wrappers"
+    else
+        _fail "_ai_clean broke under a cat/sed wrapper (got '$cleaned2[1]')"
+    end
+
+    if test "$bins2" = "mytool"
+        _ok "_ai_binaries survives a basename wrapper"
+    else
+        _fail "_ai_binaries broke under a basename wrapper (got '$bins2')"
+    end
+
     # The prose guard must be in the INSTALLED aix, not just the repo.
     if test -e ~/.config/fish/functions/aix.fish
         if grep -q 'returned prose' ~/.config/fish/functions/aix.fish

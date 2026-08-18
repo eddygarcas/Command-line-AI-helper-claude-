@@ -28,9 +28,10 @@ function _ai_binaries --description 'Extract external command names from a fish 
                 end
             end
 
-            # Strip a leading path, opening paren, or quote.
+            # Strip a leading path, opening paren, or quote. 'command basename'
+            # so a user's basename wrapper cannot break extraction.
             set first (string replace -r '^[\(\'"]+' '' -- $first)
-            set first (basename -- $first 2>/dev/null; or echo $first)
+            set first (command basename -- $first 2>/dev/null; or echo $first)
 
             # Reject anything that isn't a plausible command name.
             string match -qr '^[A-Za-z0-9_.+-]+$' -- $first; or continue

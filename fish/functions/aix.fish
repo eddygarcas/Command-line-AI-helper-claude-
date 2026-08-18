@@ -28,7 +28,7 @@ Refusal:
 - If the request is destructive or cannot be done safely in one command, output
   exactly CANNOT followed by a one-line reason."
 
-    set -l out (claude -p "$argv" --append-system-prompt "$style" | _ai_clean | string trim)
+    set -l out (command claude -p "$argv" --append-system-prompt "$style" | _ai_clean | string trim)
     set -l cmd (string join \n -- $out | string trim)
 
     if test -z "$cmd"
@@ -136,15 +136,15 @@ Refusal:
             for s in $shadowed
                 set -a erase "functions --erase $s 2>/dev/null;"
             end
-            fish -c (string join ' ' -- $erase) " $cmd"
+            command fish -c (string join ' ' -- $erase) " $cmd"
         case e E
-            set -l tmp (mktemp /tmp/aix.XXXXXX.fish)
+            set -l tmp (command mktemp /tmp/aix.XXXXXX.fish)
             printf '%s\n' $cmd >$tmp
             set -l ed $EDITOR
             test -z "$ed"; and set ed vi
             $ed $tmp
-            set -l edited (cat $tmp | string trim)
-            rm -f $tmp
+            set -l edited (command cat $tmp | string trim)
+            command rm -f $tmp
             if test -z "$edited"
                 echo "Empty after edit, not run."
                 return 1
