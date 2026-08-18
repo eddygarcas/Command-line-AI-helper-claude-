@@ -330,6 +330,33 @@ end')
         end
     end
 
+    # The #!SCRIPT marker must be stripped BEFORE validation, or the marker
+    # itself is read as the command name and a valid command gets rejected.
+    # The model emits it inline as well as on its own line.
+    for raw in '#!SCRIPT ascii-image-converter $argv[1] --color' \
+               '#!SCRIPT\nset -l u $argv[1]\ncurl -s $u'
+        set -l c (string replace -a '\\n' \n -- $raw | string trim | string collect)
+        set -l stripped (string replace -r '^#!SCRIPT[[:blank:]]*\r?\n?' '' -- $c | string trim | string collect)
+        if string match -qr '^#!SCRIPT' -- $stripped
+            _fail "#!SCRIPT marker not stripped from: $raw"
+        else if _ai_validate "$stripped" >/dev/null 2>&1
+            # good: strips cleanly and validates
+        else
+            _fail "stripped command failed validation: $stripped"
+        end
+    end
+    _ok "#!SCRIPT stripped before validation (inline and own-line)"
+
+    if test -e ~/.config/fish/functions/aix.fish
+        set -l vline (command grep -n '_ai_validate "$cmd"' ~/.config/fish/functions/aix.fish | command head -1 | command cut -d: -f1)
+        set -l sline (command grep -n 'SCRIPT\\b' ~/.config/fish/functions/aix.fish | command head -1 | command cut -d: -f1)
+        if test -n "$vline"; and test -n "$sline"; and test $sline -lt $vline
+            _ok "aix strips #!SCRIPT before validating"
+        else
+            _fail "aix validates before stripping #!SCRIPT (lines: strip=$sline validate=$vline)"
+        end
+    end
+
     # URL quoting: a bare URL with a query string is a shell hazard.
     source $REPO/fish/functions/_ai_quote_urls.fish 2>/dev/null
     set -l raw "yt-dlp -f 134 https://www.youtube.com/watch?v=abc&t=35s"

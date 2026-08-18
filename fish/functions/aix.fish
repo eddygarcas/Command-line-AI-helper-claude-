@@ -88,6 +88,18 @@ Only refusal:
     end
 
     # ------------------------------------------------------------------
+    # Script mode. Strip the marker FIRST -- validating before stripping
+    # made _ai_validate see '#!SCRIPT' as the command name and reject a
+    # perfectly good command. The model puts the marker on its own line or
+    # inline before the command, so handle both.
+    # ------------------------------------------------------------------
+    set -l is_script 0
+    if string match -qr '^#!SCRIPT\b' -- $cmd
+        set is_script 1
+        set cmd (string replace -r '^#!SCRIPT[[:blank:]]*\r?\n?' '' -- $cmd | string trim | string collect)
+    end
+
+    # ------------------------------------------------------------------
     # Validate. Underspecified prompts make the model ask a question
     # instead of answering, and _ai_binaries would then try to install
     # the first word of that question as a package.
@@ -104,7 +116,7 @@ Only refusal:
         if string match -q '*asked a question*' -- $reason
             echo "Your prompt is missing a value. Re-run with it included."
         else
-            echo "The model explained instead of writing a command. Try:"
+            echo "That is not a runnable command. Try:"
             echo "  - naming the tool:  aix \"use yt-dlp to list formats for <url>\""
             echo "  - phrasing it as a command:  aix \"command to ...\""
             echo "  - or use 'cs' if the task needs Claude to inspect things itself"
@@ -113,20 +125,12 @@ Only refusal:
         return 1
     end
 
-    # ------------------------------------------------------------------
-    # Script mode. The model signals it, but verify: no $argv means it is
-    # not actually parameterised, whatever it claimed.
-    # ------------------------------------------------------------------
-    set -l is_script 0
-    if string match -q '#!SCRIPT*' -- $out[1]
-        set cmd (string join \n -- $out[2..-1] | string trim)
-        if string match -q '*$argv*' -- $cmd
-            set is_script 1
-        else
-            set_color yellow
-            echo "aix: ignoring #!SCRIPT (no \$argv in output)"
-            set_color normal
-        end
+    # The marker is only honoured if the command is actually parameterised.
+    if test $is_script -eq 1; and not string match -q '*$argv*' -- $cmd
+        set is_script 0
+        set_color yellow
+        echo "aix: ignoring #!SCRIPT (no \$argv in output)"
+        set_color normal
     end
 
     echo
