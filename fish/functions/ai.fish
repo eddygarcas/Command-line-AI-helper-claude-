@@ -1,13 +1,15 @@
 function ai --description 'One-shot Claude query, plain text; accepts piped stdin'
     set -l style "You are answering inside a terminal. Output plain text only: no markdown fences, no headers, no bold. If the answer is a multi-line command, preserve the line breaks exactly as you would type them into a shell. Then either stop, or add exactly one declarative sentence. Never revise yourself mid-sentence. Never mention flags, variables, or settings unless you are certain they exist. No alternatives, no caveats, no restating the question."
 
+    _ai_opts
+
     if isatty stdin
-        command claude -p "$argv" --tools "" --disallowedTools "mcp__*" --max-turns 1 \
+        command claude -p "$argv" $_ai_opts_list \
             --append-system-prompt "$style" | _ai_clean
     else
         set -l piped (command cat | string collect)
         printf '%s\n\n--- input ---\n%s\n' "$argv" "$piped" \
-            | command claude -p --tools "" --disallowedTools "mcp__*" --max-turns 1 \
+            | command claude -p $_ai_opts_list \
                   --append-system-prompt "$style" | _ai_clean
     end
 end

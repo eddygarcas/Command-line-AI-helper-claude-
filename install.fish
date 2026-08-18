@@ -14,7 +14,7 @@ set -g PASS 0
 set -g WARN 0
 set -g FAIL 0
 
-set -g FUNCS ai aim aix explain cs _ai_clean _ai_binaries _ai_install _ai_save _ai_shadowed _ai_validate
+set -g FUNCS ai aim aix explain cs _ai_clean _ai_binaries _ai_install _ai_save _ai_shadowed _ai_validate _ai_opts
 
 # ---------------------------------------------------------------- helpers
 
@@ -144,7 +144,7 @@ end
 function _check_syntax
     _section "Syntax"
 
-    for f in $REPO/fish/functions/*.fish $REPO/install.fish
+    for f in $REPO/fish/functions/*.fish $REPO/install.fish $REPO/bench.fish
         if fish --no-execute $f >/dev/null 2>&1
             _ok (basename $f)
         else
@@ -290,15 +290,33 @@ end')
     set -l notools 0
     for f in ai aim explain aix
         if test -e ~/.config/fish/functions/$f.fish
-            if grep -q '\-\-tools' ~/.config/fish/functions/$f.fish
+            if grep -q '_ai_opts' ~/.config/fish/functions/$f.fish
                 set notools (math $notools + 1)
             end
         end
     end
     if test $notools -eq 4
-        _ok "ai/aim/explain/aix all run with tools disabled"
+        _ok "ai/aim/explain/aix all use _ai_opts (tools disabled)"
     else
-        _fail "only $notools of 4 print-mode functions disable tools"
+        _fail "only $notools of 4 print-mode functions use _ai_opts"
+    end
+
+    # _ai_opts must keep the empty --tools value as its own argument.
+    source $REPO/fish/functions/_ai_opts.fish 2>/dev/null
+    set -e AIX_MODEL
+    set -e AIX_BARE
+    _ai_opts
+    if test (count $_ai_opts_list) -eq 6; and test "$_ai_opts_list[1]" = "--tools"; and test -z "$_ai_opts_list[2]"
+        _ok "_ai_opts preserves the empty --tools argument"
+    else
+        _fail "_ai_opts flag list malformed: $_ai_opts_list"
+    end
+    set -lx AIX_MODEL haiku
+    _ai_opts
+    if contains -- --model $_ai_opts_list; and contains -- haiku $_ai_opts_list
+        _ok "_ai_opts honours AIX_MODEL"
+    else
+        _fail "_ai_opts ignored AIX_MODEL"
     end
 
     # aix must REPLACE the system prompt, not append. Appending keeps Claude

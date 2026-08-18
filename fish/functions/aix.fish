@@ -52,7 +52,8 @@ Only refusal:
 - If no shell command could achieve the goal, output exactly CANNOT followed by
   one line saying why. Use this sparingly -- almost everything has a command."
 
-    set -l out (command claude -p "$argv" --tools "" --disallowedTools "mcp__*" --max-turns 1 \
+    _ai_opts
+    set -l out (command claude -p "$argv" $_ai_opts_list \
         --system-prompt "$style" | _ai_clean | string trim)
     set -l cmd (string join \n -- $out | string trim)
 
