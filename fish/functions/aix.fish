@@ -4,31 +4,56 @@ function aix --description 'Ask Claude for a command, install what it needs, the
         return 2
     end
 
-    set -l style "You generate a command to run on Arch Linux (CachyOS) in the fish shell.
+    # A COMPLETE system prompt, not an append. Claude Code's default prompt
+    # frames the model as a coding agent with tools; with tools stripped it
+    # replies "I don't have tools to do that" instead of writing a command.
+    # Replacing the prompt removes that identity entirely. Per the CLI docs,
+    # replacement also drops default safety guidance -- here the CANNOT rule,
+    # _ai_validate, and the run confirmation are what stand in for it.
+    set -l style "You are a shell command generator. You are not an assistant, not
+an agent, and you have no tools. You cannot browse, read files, or run anything.
+Your ONLY function is to translate a described goal into the command that
+achieves it, for someone else to run.
 
-Output rules:
-- Output ONLY the command. No prose, no explanation, no commentary, no markdown,
-  no fences, no backticks. Not one word of English outside the command itself.
-- Output exactly ONE command or pipeline. Never offer alternatives or fallbacks.
-- Use fish syntax, never bash: command substitution is (cmd) not \$(cmd);
-  'set -x VAR val' not 'export'; 'test' not [[ ]]; no heredocs.
-- Assume GNU coreutils and standard flags. Do not assume modern replacements
-  (eza, bat, fd, ripgrep) unless the request names them.
-- Do not parse the output of ls. Use find -printf or stat directly.
-- Do not suppress errors with 2>/dev/null unless the task explicitly asks.
+Environment: Arch Linux (CachyOS), fish shell, mise for runtimes, pacman/paru
+for packages, GNU coreutils.
+
+Absolute rules:
+- Output the COMMAND, never the answer, never an explanation, never a question.
+- If the goal needs a tool you do not have, that is irrelevant -- the USER will
+  run the command. Write the command that does it. 'Check the formats of a
+  YouTube video' is not something you do; it is 'yt-dlp -F <url>'.
+- Never say what you cannot do. Never describe your limitations. Never ask for
+  clarification. You are a text transform, not a conversation.
+- Output ONLY the command: no prose, no markdown, no fences, no backticks.
+- Exactly ONE command or pipeline. No alternatives, no fallbacks.
+- The command may reference a tool that is not installed. That is fine and
+  expected -- it will be installed before running.
+- Reach for whichever tool is standard for the job, whether or not it is likely
+  installed: yt-dlp for video/audio metadata and downloads, ffmpeg for media
+  conversion, jq for JSON, exiftool for image metadata, imagemagick for images,
+  pandoc for document conversion, rsync for sync. Prefer the purpose-built tool
+  over an awkward coreutils workaround.
+- Use fish syntax, never bash: (cmd) not \$(cmd); 'set -x VAR val' not export;
+  'test' not [[ ]]; no heredocs.
+- Assume GNU coreutils. Do not assume eza/bat/fd/ripgrep unless named.
+- Never parse ls output. Use find -printf or stat.
+- Do not add 2>/dev/null unless asked.
 
 Parameterised scripts:
-- Use \$argv[1], \$argv[2] and make the VERY FIRST line exactly #!SCRIPT ONLY IF
-  the request explicitly asks for arguments, or names a value that must change
-  between runs.
+- If the goal needs a value that must change between runs, use \$argv[1],
+  \$argv[2] and make the VERY FIRST line exactly: #!SCRIPT
 - 'this directory', 'here', 'current' are NOT parameters. Use . instead.
+- A value given IN the request (a URL, a path, a name) is NOT a parameter --
+  embed it in the command directly.
 - When in doubt, do NOT use #!SCRIPT.
 
-Refusal:
-- If the request is destructive or cannot be done safely in one command, output
-  exactly CANNOT followed by a one-line reason."
+Only refusal:
+- If no shell command could achieve the goal, output exactly CANNOT followed by
+  one line saying why. Use this sparingly -- almost everything has a command."
 
-    set -l out (command claude -p "$argv" --append-system-prompt "$style" | _ai_clean | string trim)
+    set -l out (command claude -p "$argv" --tools "" --disallowedTools "mcp__*" --max-turns 1 \
+        --system-prompt "$style" | _ai_clean | string trim)
     set -l cmd (string join \n -- $out | string trim)
 
     if test -z "$cmd"
@@ -44,16 +69,28 @@ Refusal:
     end
 
     # ------------------------------------------------------------------
-    # Prose guard. The model sometimes answers in English despite the
-    # style prompt, and _ai_binaries will extract a word from a sentence
-    # and try to install it as a package. Detect and bail.
+    # Validate. Underspecified prompts make the model ask a question
+    # instead of answering, and _ai_binaries would then try to install
+    # the first word of that question as a package.
     # ------------------------------------------------------------------
-    if string match -qr '(?i)\b(worth|almost certainly|probably|you (can|could|should|might|may|will)|note that|if you want|instead of|keep in mind|be aware)\b' -- $cmd
-        or string match -qr '[a-z]{3,}\.\s+[A-Z]' -- $cmd
+    set -l reason (_ai_validate "$cmd")
+    if test $status -ne 0
         set_color red
-        echo "aix: model returned prose, not a command. Raw output:"
+        echo "aix: $reason"
         set_color normal
+        echo
         printf '%s\n' $cmd
+        echo
+        set_color yellow
+        if string match -q '*asked a question*' -- $reason
+            echo "Your prompt is missing a value. Re-run with it included."
+        else
+            echo "The model explained instead of writing a command. Try:"
+            echo "  - naming the tool:  aix \"use yt-dlp to list formats for <url>\""
+            echo "  - phrasing it as a command:  aix \"command to ...\""
+            echo "  - or use 'cs' if the task needs Claude to inspect things itself"
+        end
+        set_color normal
         return 1
     end
 
@@ -145,8 +182,11 @@ Refusal:
             $ed $tmp
             set -l edited (command cat $tmp | string trim)
             command rm -f $tmp
-            if test -z "$edited"
-                echo "Empty after edit, not run."
+            set -l reason2 (_ai_validate "$edited")
+            if test $status -ne 0
+                set_color red
+                echo "aix: $reason2 -- not run."
+                set_color normal
                 return 1
             end
             echo

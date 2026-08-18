@@ -5,10 +5,10 @@ function aim --description 'Claude query, markdown-rendered via glow'
     end
 
     if isatty stdin
-        command claude -p "$argv" | command glow -w 100 -
+        command claude -p "$argv" --tools "" --disallowedTools "mcp__*" --max-turns 1 | command glow -w 100 -
     else
         set -l piped (command cat | string collect)
         printf '%s\n\n--- input ---\n%s\n' "$argv" "$piped" \
-            | command claude -p | command glow -w 100 -
+            | command claude -p --tools "" --disallowedTools "mcp__*" --max-turns 1 | command glow -w 100 -
     end
 end

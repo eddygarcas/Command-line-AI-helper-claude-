@@ -33,7 +33,19 @@ function _ai_install --argument-names bin --description 'Install the package own
                 echo "Cannot resolve package without the files database." >&2
                 return 1
             case '*'
-                command sudo command pacman -Fy; or return 1
+                command sudo pacman -Fy; or return 1
+        end
+    end
+
+    # Warn if the package databases are old. Note -Fy syncs only the FILES
+    # databases, so resolution can work fine while the package dbs are weeks
+    # behind -- which is exactly when installs fail with 404s.
+    if test -f /var/lib/pacman/sync/core.db
+        if test (command find /var/lib/pacman/sync -maxdepth 1 -name 'core.db' -mtime +3 2>/dev/null | command wc -l) -gt 0
+            set_color yellow
+            echo "Note: package databases are over 3 days old; an install may 404."
+            echo "      'sudo pacman -Syu' first if it fails."
+            set_color normal
         end
     end
 
@@ -73,7 +85,28 @@ function _ai_install --argument-names bin --description 'Install the package own
         read -l -P "Install $choice ? [y/N] " ok
         switch $ok
             case y Y
-                command sudo command pacman -S --needed $pkg; or return 1
+                if not command sudo pacman -S --needed $pkg
+                    # Almost always a stale sync database: mirrors have a newer
+                    # version and deleted the file your db names, so every
+                    # mirror 404s. 'pacman -Sy $pkg' would "fix" it by doing a
+                    # partial upgrade, which Arch does not support and which
+                    # leaves mismatched libraries. Full -Syu is the real fix.
+                    set_color yellow
+                    echo
+                    echo "Install failed. The usual cause is a stale package database:"
+                    echo "the mirrors have a newer version, so the file your local db"
+                    echo "names no longer exists (404 from every mirror)."
+                    echo
+                    echo "Arch does not support partial upgrades, so 'pacman -Sy $pkg'"
+                    echo "is not a safe workaround. A full sync is the correct fix."
+                    set_color normal
+                    read -l -P "Run 'sudo pacman -Syu' now, then retry? [y/N] " sync
+                    if not contains -- $sync y Y
+                        return 1
+                    end
+                    command sudo pacman -Syu; or return 1
+                    command sudo pacman -S --needed $pkg; or return 1
+                end
             case '*'
                 echo "Skipped."
                 return 1

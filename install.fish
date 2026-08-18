@@ -14,7 +14,7 @@ set -g PASS 0
 set -g WARN 0
 set -g FAIL 0
 
-set -g FUNCS ai aim aix explain cs _ai_clean _ai_binaries _ai_install _ai_save _ai_shadowed
+set -g FUNCS ai aim aix explain cs _ai_clean _ai_binaries _ai_install _ai_save _ai_shadowed _ai_validate
 
 # ---------------------------------------------------------------- helpers
 
@@ -245,13 +245,88 @@ end')
         _fail "_ai_binaries broke under a basename wrapper (got '$bins2')"
     end
 
+    # Validator: the three real-world failures that reached _ai_install as
+    # package names ('Please', 'Go') or crashed eval on an unbalanced quote.
+    source $REPO/fish/functions/_ai_validate.fish 2>/dev/null
+
+    set -l blocked 0
+    for bad in "Please go ahead and share the URL." "What's the URL?" \
+        "Go ahead and share the URL." "I need the URL first" \
+        "curl -s 'https://x.com" "" "db/schema.rb" "package.json" \
+        "config/database.yml" "README.md"
+        _ai_validate "$bad" >/dev/null 2>&1; or set blocked (math $blocked + 1)
+    end
+    if test $blocked -eq 10
+        _ok "_ai_validate blocks questions, prose, paths, and bad syntax"
+    else
+        _fail "_ai_validate only blocked $blocked of 10 bad inputs"
+    end
+
+    set -l allowed 0
+    for good in "curl -s https://api.example.com/health" \
+        "du -h --max-depth=1 /var | sort -rh | head -10" \
+        "git log --oneline -20" "find . -name schema.rb" \
+        "mise exec -- bundle exec rspec" "sudo pacman -Syu" \
+        "/bin/ls -la" "cat db/schema.rb"
+        _ai_validate "$good" >/dev/null 2>&1; and set allowed (math $allowed + 1)
+    end
+    if test $allowed -eq 8
+        _ok "_ai_validate passes real commands"
+    else
+        _fail "_ai_validate rejected "(math 8 - $allowed)" valid commands"
+    end
+
+    if test -e ~/.config/fish/functions/aix.fish
+        if grep -q '_ai_validate' ~/.config/fish/functions/aix.fish
+            _ok "aix uses _ai_validate"
+        else
+            _fail "installed aix.fish predates _ai_validate"
+        end
+    end
+
+    # Print-mode calls must have no agency: no tools, no MCP, one turn.
+    # Otherwise the model tries to DO the task (WebFetch, Read) instead of
+    # writing the command, and returns an explanation of why it couldn't.
+    set -l notools 0
+    for f in ai aim explain aix
+        if test -e ~/.config/fish/functions/$f.fish
+            if grep -q '\-\-tools' ~/.config/fish/functions/$f.fish
+                set notools (math $notools + 1)
+            end
+        end
+    end
+    if test $notools -eq 4
+        _ok "ai/aim/explain/aix all run with tools disabled"
+    else
+        _fail "only $notools of 4 print-mode functions disable tools"
+    end
+
+    # aix must REPLACE the system prompt, not append. Appending keeps Claude
+    # Code's coding-agent identity, which with tools disabled produces
+    # "I don't have tools to do that" instead of a command.
+    if test -e ~/.config/fish/functions/aix.fish
+        if grep -q '\-\-system-prompt' ~/.config/fish/functions/aix.fish
+            _ok "aix replaces the system prompt"
+        else
+            _fail "aix still appends to the default system prompt"
+        end
+    end
+
+    # Lint: 'command sudo command pacman' passes 'command' to sudo as a binary
+    # name, which fails with "sudo: command: command not found". A second
+    # 'command' is never correct -- sudo does its own PATH lookup, so fish
+    # aliases cannot intercept what it runs anyway.
+    set -l doubled (grep -rln 'command [a-z-]* command ' $REPO/fish/functions/ 2>/dev/null)
+    if test (count $doubled) -eq 0
+        _ok "no doubled 'command' prefixes"
+    else
+        for d in $doubled
+            _fail "doubled 'command' prefix in "(command basename $d)
+        end
+    end
+
     # The prose guard must be in the INSTALLED aix, not just the repo.
     if test -e ~/.config/fish/functions/aix.fish
-        if grep -q 'returned prose' ~/.config/fish/functions/aix.fish
-            _ok "aix prose guard present in installed copy"
-        else
-            _fail "installed aix.fish predates the prose guard"
-        end
         if grep -q '_ai_shadowed' ~/.config/fish/functions/aix.fish
             _ok "aix shadow detection present in installed copy"
         else

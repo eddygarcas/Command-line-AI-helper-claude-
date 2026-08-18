@@ -3,5 +3,5 @@ function explain --description 'Explain a shell command and its risks'
         echo "usage: explain <command>" >&2
         return 2
     end
-    claude -p "Explain this command, what it does, and anything risky about it. Be terse. Command: $argv" | _ai_clean
+    command claude -p --tools "" --disallowedTools "mcp__*" --max-turns 1 "Explain this command, what it does, and anything risky about it. Be terse. Command: $argv" | _ai_clean
 end
