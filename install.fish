@@ -346,6 +346,21 @@ end')
         _fail "_ai_quote_urls double-quoted an already-quoted URL"
     end
 
+    # Every helper aix preflights on must be installed, or aix refuses to run.
+    if test -e ~/.config/fish/functions/aix.fish
+        set -l needed (string match -r 'for h in (_ai_[a-z_ ]+)' \
+            (command grep -o 'for h in _ai_[a-z_ ]*' ~/.config/fish/functions/aix.fish))[2]
+        set -l absent
+        for h in (string split -n ' ' -- $needed)
+            test -e ~/.config/fish/functions/$h.fish; or set -a absent $h
+        end
+        if test (count $absent) -eq 0
+            _ok "all aix helper dependencies installed"
+        else
+            _fail "aix depends on missing helpers: $absent"
+        end
+    end
+
     # Lint: 'command sudo command pacman' passes 'command' to sudo as a binary
     # name, which fails with "sudo: command: command not found". A second
     # 'command' is never correct -- sudo does its own PATH lookup, so fish

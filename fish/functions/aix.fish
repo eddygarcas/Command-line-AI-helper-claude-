@@ -4,6 +4,22 @@ function aix --description 'Ask Claude for a command, install what it needs, the
         return 2
     end
 
+    # Preflight. aix is a thin shell around eight helpers; if one is missing the
+    # failure modes are silent and confusing (an empty command substitution
+    # blanks $cmd and you get a run menu for nothing). Fail loudly instead.
+    # 'functions -q' triggers autoload, so this works on a cold shell.
+    set -l missing
+    for h in _ai_opts _ai_clean _ai_validate _ai_quote_urls _ai_binaries _ai_shadowed _ai_install _ai_save
+        functions -q $h; or set -a missing $h
+    end
+    if test (count $missing) -gt 0
+        set_color red
+        echo "aix: missing helper function(s): $missing" >&2
+        set_color normal
+        echo "Re-run ./install.fish from the claude-shell repo." >&2
+        return 1
+    end
+
     # A COMPLETE system prompt, not an append. Claude Code's default prompt
     # frames the model as a coding agent with tools; with tools stripped it
     # replies "I don't have tools to do that" instead of writing a command.
@@ -118,10 +134,10 @@ Only refusal:
     printf '%s\n' $cmd
     set_color normal
 
-    # Quote bare URLs with query strings. Done after display of the raw output
-    # would be confusing, so do it before and say so when it changes anything.
+    # Quote bare URLs with query strings. Guard against an empty result: a
+    # failed substitution must never silently blank the command.
     set -l quoted (_ai_quote_urls "$cmd" | string collect)
-    if test "$quoted" != "$cmd"
+    if test -n "$quoted"; and test "$quoted" != "$cmd"
         set cmd $quoted
         set_color cyan
         echo "(quoted a URL containing shell metacharacters)"
